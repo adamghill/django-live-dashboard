@@ -1,0 +1,251 @@
+{% extends 'admin/base_site.html' %}
+
+{% block extrahead %}
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.24.0/moment.min.js"></script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.3/Chart.min.js"></script>
+<script
+    src="https://cdn.jsdelivr.net/npm/chartjs-plugin-streaming@latest/dist/chartjs-plugin-streaming.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/alpinejs/alpine@v2.x.x/dist/alpine.min.js" defer></script>
+{% endblock extrahead %}
+
+{% block content %}
+<div style="width: content-box; height: 600px">
+    <div x-data="xData()" x-init="$watch('dataType', value => setChartDataType(value))">
+        <div style="float: left;">
+            <div class="breadcrumbs"
+                style="width: 60px; margin-bottom: 20px; margin-right: 20px; color: white; text-align: center; float: left;">
+                <div style=" font-weight: bolder;">Current Requests</div>
+                <span id="requestCount" style="font-size: xxx-large;">0</span>
+            </div>
+            <div class="breadcrumbs"
+                style="width: 60px; margin-bottom: 20px; margin-right: 20px; color: white; text-align: center; float: left;">
+                <div style="font-weight: bolder;">Current Urls</div>
+                <span id="urlCount" style="font-size: xxx-large;">0</span>
+            </div>
+        </div>
+        <div style="clear: both;">
+            <label for="dataType">Chart Data</label>
+            <select name="dataType" id="dataType" x-model="dataType" style="margin-right: 20px;">
+                <option value="pythonTime">Python Time</option>
+                <option value="dbTime">Database Time</option>
+                <option value="totalTime">Total Time</option>
+                <option value="dbQueries">Database Queries</option>
+            </select>
+            <span x-show="!paused">
+                <button @click.prevent="pause()" type="submit" class="button" title="Pause">Pause Chart</button>
+            </span>
+            <span x-show="paused">
+                <button @click.prevent="start()" type="submit" class="button" title="Start">Start Chart</button>
+            </span>
+        </div>
+    </div>
+
+    <canvas id="chart"></canvas>
+</div>
+{% endblock %}
+
+{% block footer %}
+{{ block.super }}
+<script>
+    function xData() {
+        return {
+            paused: false,
+            pause() {
+                this.paused = true;
+                this.setChartPaused();
+            },
+            start() {
+                this.paused = false;
+                this.setChartPaused();
+            },
+            setChartPaused() {
+                chart.options.scales.xAxes[0].realtime.pause = this.paused;
+            },
+            dataType: '',
+        }
+    }
+
+    function setChartDataType(dataType) {
+        chartDataType = dataType;
+    }
+
+    window.statsQueue = [];
+    var chartDataType = 'pythonTime';
+
+    let ws = new WebSocket('ws://{{ websocket_host }}/')
+    ws.onmessage = event => {
+        var json = JSON.parse(event.data);
+        window.statsQueue.push(json);
+    }
+
+    function start() {
+        if (ws.readyState) {
+            ws.send("{{ pubsub_channel }}");
+
+            if (timerId) { clearInterval(timerId); }
+        }
+    }
+
+    let timerId = setInterval(() => start(), 500);
+
+    function getRandomInt(max) {
+        return Math.floor(Math.random() * Math.floor(max));
+    }
+    var ctx = document.getElementById('chart').getContext('2d');
+
+    function getRandomColor() {
+        var colors = [
+            "#7cb5ec",
+            "#434348",
+            "#90ed7d",
+            "#f7a35c",
+            "#8085e9",
+            "#f15c80",
+            "#e4d354",
+            "#2b908f",
+            "#f45b5b",
+            "#91e8e1",
+        ];
+
+        return colors[getRandomInt(colors.length - 1)];
+    }
+
+    var initialDatasetColor = getRandomColor();
+
+    var chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            datasets: [{
+                pointBackgroundColor: initialDatasetColor,
+                backgroundColor: initialDatasetColor,
+                borderColor: initialDatasetColor,
+                fill: false,
+                data: []
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            // try to make chartjs as responsive as possible
+            animation: {
+                duration: 0
+            },
+            hover: {
+                animationDuration: 0
+            },
+            responsiveAnimationDuration: 0,
+            plugins: {
+                streaming: {
+                    // frameRate: 5
+                }
+            },
+            scales: {
+                xAxes: [{
+                    type: 'realtime',
+                    time: {
+                        format: undefined,  // stops warning from being logged to console
+                    },
+                    realtime: {
+                        refresh: {{ refresh }},
+                        duration: {{ duration }},
+                        delay: {{ delay }},
+                        onRefresh: function (chart) {
+                            var datasets = chart.data.datasets;
+
+                            var urls = {};
+                            var requestCount = window.statsQueue.length;
+
+                            window.statsQueue.forEach(json => {
+                                if (json.url in urls) {
+                                    urls[json.url]['count'] = urls[json.url]['count'] + 1
+                                } else {
+                                    urls[json.url] = {
+                                        count: 1,
+                                    }
+                                }
+                            });
+
+                            document.getElementById('requestCount').innerHTML = requestCount;
+                            document.getElementById('urlCount').innerHTML = Object.keys(urls).length;
+
+                            /*
+                            window.statsQueue.forEach(json => {
+                                // console.log('element', json)
+ 
+                                if (json.url in urls) {
+                                    urls[json.url]['count'] = urls[json.url]['count'] + 1
+                                    urls[json.url]['val'] = urls[json.url]['val'] + json[chartDataType]
+                                } else {
+                                    urls[json.url] = {
+                                        count: 1,
+                                        val: json[chartDataType],
+                                    }
+                                }
+ 
+                                window.statsQueue.pop()
+                            });
+ 
+                            Object.keys(urls).forEach(url => {
+                                let data = urls[url];
+                                let avg = data.val / data.count;
+                                console.log(url, data.count)
+ 
+                                if (datasets[0].data.length == 0) {
+                                    datasets[0].label = url;
+                                    datasets[0].data.push({ x: Date.now(), y: avg });
+                                } else {
+                                    var filteredDatasets = datasets.filter(d => d.label == url);
+ 
+                                    if (filteredDatasets.length > 0) {
+                                        var dataset = filteredDatasets[0];
+                                        dataset.data.push({ x: Date.now(), y: avg })
+                                    } else {
+                                        var color = getRandomColor();
+                                        var dataset = {
+                                            pointBackgroundColor: color,
+                                            backgroundColor: color,
+                                            borderColor: color,
+                                            fill: false,
+                                            label: url,
+                                            data: [{ x: Date.now(), y: avg }]
+                                        };
+                                        datasets.push(dataset);
+                                    }
+                                }
+                            });
+                            */
+
+                            while (window.statsQueue.length > 0) {
+                                var json = window.statsQueue.pop()
+
+                                if (datasets[0].data.length == 0) {
+                                    datasets[0].label = json.url;
+                                    datasets[0].data.push({ x: Date.now(), y: json[chartDataType] });
+                                } else {
+                                    var filteredDatasets = datasets.filter(d => d.label == json.url);
+
+                                    if (filteredDatasets.length > 0) {
+                                        var dataset = filteredDatasets[0];
+                                        dataset.data.push({ x: Date.now(), y: json[chartDataType] })
+                                    } else {
+                                        var color = getRandomColor();
+                                        var dataset = {
+                                            pointBackgroundColor: color,
+                                            backgroundColor: color,
+                                            borderColor: color,
+                                            fill: false,
+                                            label: json.url,
+                                            data: [{ x: Date.now(), y: json[chartDataType] }]
+                                        };
+                                        datasets.push(dataset);
+                                    }
+                                }
+                            }
+                        },
+                    }
+                }]
+            }
+        }
+    });
+</script>
+{% endblock %}
