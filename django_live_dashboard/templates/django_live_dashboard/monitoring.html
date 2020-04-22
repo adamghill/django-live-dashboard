@@ -15,21 +15,26 @@
             <div class="breadcrumbs"
                 style="width: 60px; margin-bottom: 20px; margin-right: 20px; color: white; text-align: center; float: left;">
                 <div style=" font-weight: bolder;">Current Requests</div>
-                <span id="requestCount" style="font-size: xxx-large;">0</span>
+                <span id="currentRequests" style="font-size: xxx-large;">0</span>
             </div>
             <div class="breadcrumbs"
                 style="width: 60px; margin-bottom: 20px; margin-right: 20px; color: white; text-align: center; float: left;">
                 <div style="font-weight: bolder;">Current Urls</div>
-                <span id="urlCount" style="font-size: xxx-large;">0</span>
+                <span id="currentUrls" style="font-size: xxx-large;">0</span>
+            </div>
+            <div class="breadcrumbs"
+                style="width: 60px; margin-bottom: 20px; margin-right: 20px; color: white; text-align: center; float: left;">
+                <div style="font-weight: bolder;">Database Queries</div>
+                <span id="databaseQueries" style="font-size: xxx-large;">0</span>
             </div>
         </div>
         <div style="clear: both;">
             <label for="dataType">Chart Data</label>
             <select name="dataType" id="dataType" x-model="dataType" style="margin-right: 20px;">
                 <option value="pythonTime">Python Time</option>
-                <option value="dbTime">Database Time</option>
+                <option value="databaseTime">Database Time</option>
                 <option value="totalTime">Total Time</option>
-                <option value="dbQueries">Database Queries</option>
+                <option value="databaseQueries">Database Queries</option>
             </select>
             <span x-show="!paused">
                 <button @click.prevent="pause()" type="submit" class="button" title="Pause">Pause Chart</button>
@@ -153,25 +158,33 @@
                             var datasets = chart.data.datasets;
 
                             var urls = {};
-                            var requestCount = window.statsQueue.length;
+                            var currentRequests = window.statsQueue.length;
+                            var databaseQueries = 0;
 
+                            // Get some metadata about the current requests
                             window.statsQueue.forEach(json => {
                                 if (json.url in urls) {
-                                    urls[json.url]['count'] = urls[json.url]['count'] + 1
+                                    urls[json.url]['currentRequests'] += 1
+                                    urls[json.url]['databaseQueries'] += json.databaseQueries
                                 } else {
                                     urls[json.url] = {
-                                        count: 1,
+                                        currentRequests: 1,
+                                        databaseQueries: json.databaseQueries
                                     }
                                 }
+
+                                databaseQueries += json.databaseQueries;
                             });
 
-                            document.getElementById('requestCount').innerHTML = requestCount;
-                            document.getElementById('urlCount').innerHTML = Object.keys(urls).length;
+                            document.getElementById('currentRequests').innerHTML = currentRequests;
+                            document.getElementById('currentUrls').innerHTML = Object.keys(urls).length;
+                            document.getElementById('databaseQueries').innerHTML = databaseQueries;
 
+                            // Aggregate data before pushing it into the chart
                             /*
                             window.statsQueue.forEach(json => {
                                 // console.log('element', json)
- 
+                    
                                 if (json.url in urls) {
                                     urls[json.url]['count'] = urls[json.url]['count'] + 1
                                     urls[json.url]['val'] = urls[json.url]['val'] + json[chartDataType]
@@ -181,21 +194,21 @@
                                         val: json[chartDataType],
                                     }
                                 }
- 
+                    
                                 window.statsQueue.pop()
                             });
- 
+                    
                             Object.keys(urls).forEach(url => {
                                 let data = urls[url];
                                 let avg = data.val / data.count;
                                 console.log(url, data.count)
- 
+                    
                                 if (datasets[0].data.length == 0) {
                                     datasets[0].label = url;
                                     datasets[0].data.push({ x: Date.now(), y: avg });
                                 } else {
                                     var filteredDatasets = datasets.filter(d => d.label == url);
- 
+                    
                                     if (filteredDatasets.length > 0) {
                                         var dataset = filteredDatasets[0];
                                         dataset.data.push({ x: Date.now(), y: avg })
@@ -215,6 +228,7 @@
                             });
                             */
 
+                            // Push data into the chart
                             while (window.statsQueue.length > 0) {
                                 var json = window.statsQueue.pop()
 

@@ -1,70 +1,66 @@
 from time import time
 
-from django.conf import settings
 from django.db import connection
 
 import orjson
 import redis
+from box import Box
+
+from .conf import Settings
 
 
 class DjangoLiveDashboardMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
-        self.is_enabled = settings.DJANGO_LIVE_DASHBOARD.get("ENABLED", settings.DEBUG)
+        self.settings = Box(Settings().DJANGO_LIVE_DASHBOARD)
 
-        if self.is_enabled:
-            redis_host = settings.DJANGO_LIVE_DASHBOARD.get("REDIS", {}).get(
-                "HOST", "localhost"
-            )
-            redis_port = settings.DJANGO_LIVE_DASHBOARD.get("REDIS", {}).get(
-                "PORT", 6379
-            )
-            redis_db = settings.DJANGO_LIVE_DASHBOARD.get("REDIS", {}).get("DB", 0)
+        if self.settings.ENABLED:
+            redis_host = self.settings.REDIS.HOST
+            redis_port = self.settings.REDIS.PORT
+            redis_db = self.settings.REDIS.DB
 
             self.redis_connection = redis.Redis(
                 host=redis_host, port=redis_port, db=redis_db,
             )
 
     def __call__(self, request):
-        if self.is_enabled:
-            # Get initial data
-            start = time()
-            initial_database_query_count = len(connection.queries)
+        if not self.settings.ENABLED:
+            return self.get_response(request)
 
-            response = self.get_response(request)
+        # Get initial data
+        start = time()
+        initial_database_query_count = len(connection.queries)
 
-            # Get data after the response has been created
-            total_time = time() - start
-            total_time_cutoff = settings.DJANGO_LIVE_DASHBOARD.get(
-                "TOTAL_TIME_CUTOFF", 0.5
-            )
+        response = self.get_response(request)
 
-            if total_time > total_time_cutoff:
-                db_queries = len(connection.queries) - initial_database_query_count
-                db_time = 0.0
+        # Get data after the response has been created
+        total_time = time() - start
+        total_time_cutoff = self.settings.TOTAL_TIME_CUTOFF or 0
 
-                if db_queries:
-                    db_time = sum(
-                        [
-                            float(q["time"])
-                            for q in connection.queries[initial_database_query_count:]
-                        ],
-                    )
+        if total_time > total_time_cutoff:
+            database_queries = len(connection.queries) - initial_database_query_count
+            database_time = 0.0
 
-                python_time = total_time - db_time
-                url = request.path
-
-                stats = {
-                    "url": url,
-                    "totalTime": total_time,
-                    "pythonTime": python_time,
-                    "dbTime": db_time,
-                    "dbQueries": (db_queries - initial_database_query_count),
-                }
-
-                pubsub_channel = settings.DJANGO_LIVE_DASHBOARD.get("REDIS", {}).get(
-                    "PUBSUB_CHANNEL", "django_live_dashboard:stats"
+            if database_queries:
+                database_time = sum(
+                    [
+                        float(q["time"])
+                        for q in connection.queries[initial_database_query_count:]
+                    ],
                 )
-                self.redis_connection.publish(pubsub_channel, orjson.dumps(stats))
+
+            python_time = total_time - database_time
+            url = request.path
+
+            stats = {
+                "url": url,
+                "totalTime": total_time,
+                "pythonTime": python_time,
+                "databaseTime": database_time,
+                "databaseQueries": (database_queries - initial_database_query_count),
+            }
+
+            pubsub_channel = self.settings.REDIS.PUBSUB_CHANNEL
+            self.redis_connection.publish(pubsub_channel, orjson.dumps(stats))
 
         return response

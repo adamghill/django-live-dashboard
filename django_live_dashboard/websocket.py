@@ -1,8 +1,10 @@
 import asyncio
-import orjson
 
 import aioredis
-from django.conf import settings
+import orjson
+from box import Box
+
+from .conf import Settings
 
 
 async def reader(channel, send):
@@ -14,15 +16,12 @@ async def reader(channel, send):
 
 
 async def websocket_application(scope, receive, send):
-    redis_host = settings.DJANGO_LIVE_DASHBOARD.get("REDIS", {}).get(
-        "HOST", "localhost"
-    )
-    redis_port = settings.DJANGO_LIVE_DASHBOARD.get("REDIS", {}).get("PORT", 6379)
+    settings = Box(Settings().DJANGO_LIVE_DASHBOARD)
+    redis_host = settings.REDIS.HOST
+    redis_port = settings.REDIS.PORT
+    pubsub_channel = settings.REDIS.PUBSUB_CHANNEL
 
     subscriber = await aioredis.create_redis(f"redis://{redis_host}:{redis_port}")
-    pubsub_channel = settings.DJANGO_LIVE_DASHBOARD.get("REDIS", {}).get(
-        "PUBSUB_CHANNEL", "django_live_dashboard:stats"
-    )
     response = await subscriber.subscribe(pubsub_channel)
 
     while True:

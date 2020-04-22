@@ -1,26 +1,23 @@
-from django.conf import settings
 from django.contrib.admin.views.decorators import staff_member_required
 from django.shortcuts import render
+
+from box import Box
+
+from .conf import Settings
 
 
 @staff_member_required
 def monitoring(request):
-    websocket_host = settings.DJANGO_LIVE_DASHBOARD.get("WEBSOCKET_HOST", "localhost")
-    refresh = settings.DJANGO_LIVE_DASHBOARD.get("CHART", {}).get("REFRESH", 1000)
-    delay = settings.DJANGO_LIVE_DASHBOARD.get("CHART", {}).get("DELAY", 1000)
-    duration = settings.DJANGO_LIVE_DASHBOARD.get("CHART", {}).get("DURATION", 100000)
-    pubsub_channel = settings.DJANGO_LIVE_DASHBOARD.get("REDIS", {}).get(
-        "PUBSUB_CHANNEL", "django_live_dashboard:stats"
-    )
+    settings = Box(Settings().DJANGO_LIVE_DASHBOARD)
 
     return render(
         request,
         "django_live_dashboard/monitoring.html",
         {
-            "pubsub_channel": pubsub_channel,
-            "websocket_host": websocket_host,
-            "refresh": refresh,
-            "delay": delay,
-            "duration": duration,
+            "pubsub_channel": settings.REDIS.PUBSUB_CHANNEL,
+            "websocket_host": settings.WEBSOCKET_HOST,
+            "refresh": settings.CHART.REFRESH,
+            "delay": settings.CHART.DELAY,
+            "duration": settings.CHART.DURATION,
         },
     )

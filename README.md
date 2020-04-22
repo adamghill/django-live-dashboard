@@ -5,7 +5,7 @@ Inspired by Phoenix's LiveViewDashboard; uses redis publisher-subscriber, chart.
 # Requires
 1. Python 3.6+
 1. Django 3.0+
-1. Django to be run via `ASGI` for websockets
+1. Django to be run via `ASGI` for websockets support
 
 # Install
 1. `pip install django-live-dashboard` or `poetry add django-live-dashboard`
@@ -72,6 +72,16 @@ Time duration in milliseconds of how much data should be charted. Defaults to 10
 ### REFRESH
 How often the chart should try to refresh its data. Defaults to 1000.
 
-# Local dev
-1. `poetry build`
-1. `pip install -U django-live-dashboard/dist/django_live_dashboard-0.1.0-py3-none-any.whl`
+# Example Django project
+
+Found in the `example_project` directory in this repo.
+
+## How to run
+
+1. `redis-server`
+1. `poetry install`
+1. `poetry run example_project/manage.py migrate`
+1. `poetry run example_project/manage.py createsuperuser`
+1. `poetry run uvicorn example_project.project.asgi:application`
+1. Go to http://localhost:8000/monitoring/
+1. Open up http://localhost:8000/admin/ in a new tab; go back to the first tab and you should see some updated information
