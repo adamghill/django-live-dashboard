@@ -1,6 +1,8 @@
 # django_live_dashboard
 
-Inspired by Phoenix's LiveViewDashboard; uses redis publisher-subscriber, chart.js, and alpine.js.
+Inspired by Phoenix's LiveView Dashboard. Uses `redis` pub-sub, chart.js, alpine.js, and websockets for streaming realtime updates of all current requests to a Django application.
+
+[[https://github.com/adamghill/django-live-dashboard/blob/master/django-live-dashboard-demo.gif|alt=demo]]
 
 # Requires
 1. Python 3.6+
@@ -9,7 +11,7 @@ Inspired by Phoenix's LiveViewDashboard; uses redis publisher-subscriber, chart.
 
 # Install
 1. `pip install django-live-dashboard` or `poetry add django-live-dashboard`
-1. Update current `asgi.py` or use the `asgi.py` in the repo as an example
+1. Update current `asgi.py` or use the `asgi.py` file in the repo as an example
 1. Add `"django_live_dashboard",` to `INSTALLED_APPS` in settings file
 1. Add `"django_live_dashboard.middleware.DjangoLiveDashboardMiddleware",` to beginning of the `MIDDLEWARE` list in settings file
 1. Add `DJANGO_LIVE_DASHBOARD` configuration to settings file (see details below)

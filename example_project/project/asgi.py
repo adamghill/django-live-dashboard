@@ -10,14 +10,11 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "example_project.project.setting
 
 django_application = get_asgi_application()
 
-print("asgi got loaded")
-
 
 async def application(scope, receive, send):
     if scope["type"] == "http":
         await django_application(scope, receive, send)
     elif scope["type"] == "websocket":
-        print("got websocket")
         await websocket_application(scope, receive, send)
     else:
         raise NotImplementedError(f"Unknown scope type {scope['type']}")
