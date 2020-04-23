@@ -2,7 +2,7 @@
 
 Inspired by Phoenix's LiveView Dashboard. Uses `redis` pub-sub, chart.js, alpine.js, and websockets for streaming realtime updates of all current requests to a Django application.
 
-[[https://github.com/adamghill/django-live-dashboard/blob/master/django-live-dashboard-demo.gif|alt=demo]]
+![](https://github.com/adamghill/django-live-dashboard/blob/master/django-live-dashboard-demo.gif)
 
 # Requires
 1. Python 3.6+
